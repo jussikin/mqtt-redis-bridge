@@ -9,8 +9,10 @@ export class MQTTClient {
   private options: IClientOptions;
 
   constructor() {
-    console.log('Initializing MQTT client with broker URL:', config.mqtt.brokerUrl);
-    console.log('Will subscribe to topics:', config.mqtt.topics.join(', '));
+    if (config.logging.enabled) {
+      console.log('Initializing MQTT client with broker URL:', config.mqtt.brokerUrl);
+      console.log('Will subscribe to topics:', config.mqtt.topics.join(', '));
+    }
     
     this.options = {
       clientId: config.mqtt.clientId,
@@ -28,13 +30,15 @@ export class MQTTClient {
 
   private setupEventHandlers(): void {
     this.client.on('connect', () => {
-      console.log('Connected to MQTT broker');
-      if (this.client.options) {
-        console.log('Connection details:', {
-          clientId: this.client.options.clientId,
-          protocolVersion: this.client.options.protocolVersion,
-          clean: this.client.options.clean,
-        });
+      if (config.logging.enabled) {
+        console.log('Connected to MQTT broker');
+        if (this.client.options) {
+          console.log('Connection details:', {
+            clientId: this.client.options.clientId,
+            protocolVersion: this.client.options.protocolVersion,
+            clean: this.client.options.clean,
+          });
+        }
       }
       this.connected = true;
       this.subscribeToTopics();
@@ -43,27 +47,20 @@ export class MQTTClient {
     this.client.on('message', this.handleMessage.bind(this));
 
     this.client.on('error', (error: Error) => {
-      console.error('MQTT Error:', error);
-      if ('stack' in error) {
-        console.error('Error stack:', (error as Error).stack);
+      if (config.logging.enabled) {
+        console.error('MQTT Error:', error);
+        if ('stack' in error) {
+          console.error('Stack trace:', error.stack);
+        }
       }
       this.connected = false;
-    });
 
-    this.client.on('close', () => {
-      console.log('MQTT connection closed');
-      this.connected = false;
-      // Attempt to reconnect after a delay
-      console.log('Will attempt to reconnect in 5 seconds...');
+      // If we get an error and we're not connected, try to reconnect after a delay
       setTimeout(() => {
-        console.log('Attempting to reconnect to MQTT broker...');
-        // @ts-ignore - The reconnect method exists but isn't in the type definitions
-        if (typeof this.client.reconnect === 'function') {
-          // @ts-ignore
-          this.client.reconnect();
-        } else {
-          // If reconnect method doesn't exist, we'll need to create a new client
-          console.log('Recreating MQTT client...');
+        if (!this.connected) {
+          if (config.logging.enabled) {
+            console.log('Attempting to reconnect to MQTT broker...');
+          }
           this.client.end(true, () => {
             this.client = mqtt.connect(config.mqtt.brokerUrl, this.options);
             this.setupEventHandlers();
@@ -73,12 +70,53 @@ export class MQTTClient {
     });
 
     this.client.on('offline', () => {
-      console.log('MQTT client is offline');
+      if (config.logging.enabled) {
+        console.log('MQTT client is offline');
+      }
       this.connected = false;
     });
 
     this.client.on('reconnect', () => {
-      console.log('Attempting to reconnect to MQTT broker...');
+      if (config.logging.enabled) {
+        console.log('Attempting to reconnect to MQTT broker...');
+      }
+    });
+
+    this.client.on('end', () => {
+      if (config.logging.enabled) {
+        console.log('MQTT client ended');
+      }
+      this.connected = false;
+    });
+
+    this.client.on('close', () => {
+      if (config.logging.enabled) {
+        console.log('MQTT connection closed');
+      }
+      this.connected = false;
+      // Attempt to reconnect after a delay
+      if (config.logging.enabled) {
+        console.log('Will attempt to reconnect in 5 seconds...');
+      }
+      setTimeout(() => {
+        if (config.logging.enabled) {
+          console.log('Attempting to reconnect to MQTT broker...');
+        }
+        // @ts-ignore - The reconnect method exists but isn't in the type definitions
+        if (typeof this.client.reconnect === 'function') {
+          // @ts-ignore
+          this.client.reconnect();
+        } else {
+          // If reconnect method doesn't exist, we'll need to create a new client
+          if (config.logging.enabled) {
+            console.log('Recreating MQTT client...');
+          }
+          this.client.end(true, () => {
+            this.client = mqtt.connect(config.mqtt.brokerUrl, this.options);
+            this.setupEventHandlers();
+          });
+        }
+      }, 5000);
     });
 
     this.client.on('end', () => {
@@ -89,7 +127,9 @@ export class MQTTClient {
 
   private subscribeToTopics(): void {
     if (!config.mqtt.topics.length) {
-      console.warn('No topics to subscribe to');
+      if (config.logging.enabled) {
+        console.warn('No topics to subscribe to');
+      }
       return;
     }
 
@@ -101,10 +141,14 @@ export class MQTTClient {
 
     this.client.subscribe(subscriptionMap, (err, granted) => {
       if (err) {
-        console.error('Subscription error:', err);
+        if (config.logging.enabled) {
+          console.error('Subscription error:', err);
+        }
         return;
       }
-      console.log('Successfully subscribed to topics:', granted.map(g => `${g.topic} (QoS: ${g.qos})`).join(', '));
+      if (config.logging.enabled) {
+        console.log('Successfully subscribed to topics:', granted.map(g => `${g.topic} (QoS: ${g.qos})`).join(', '));
+      }
     });
   }
 
@@ -113,27 +157,34 @@ export class MQTTClient {
       const messageStr = message.toString();
       const timestamp = new Date().toISOString();
       
-      // Log detailed message information
-      console.log('\n--- New MQTT Message ---');
-      console.log(`Topic: ${topic}`);
-      console.log(`Message: ${messageStr}`);
-      console.log(`Timestamp: ${timestamp}`);
-      
-      // Extract device ID from topic (assuming format /shellies/device-id/status)
-      const topicParts = topic.split('/');
-      if (topicParts.length >= 3) {
-        const deviceId = topicParts[2];
-        console.log(`Device ID: ${deviceId}`);
+      if (config.logging.enabled) {
+        // Log detailed message information
+        console.log('\n--- New MQTT Message ---');
+        console.log(`Topic: ${topic}`);
+        console.log(`Message: ${messageStr}`);
+        console.log(`Timestamp: ${timestamp}`);
+        
+        // Extract device ID from topic (assuming format /shellies/device-id/status)
+        const topicParts = topic.split('/');
+        if (topicParts.length >= 3) {
+          const deviceId = topicParts[2];
+          console.log(`Device ID: ${deviceId}`);
+        }
+        console.log(''); // Add a blank line after message details
       }
       
       // Store the message in Redis hash
       await redisClient.setHash(topic, 'latest', messageStr);
       await redisClient.setHash(topic, 'timestamp', timestamp);
       
-      console.log('Message processed and stored in Redis\n');
+      if (config.logging.enabled) {
+        console.log('Message processed and stored in Redis\n');
+      }
       
     } catch (error) {
-      console.error('Error processing message:', error);
+      if (config.logging.enabled) {
+        console.error('Error processing message:', error);
+      }
     }
   }
 
@@ -141,7 +192,9 @@ export class MQTTClient {
     if (this.connected) {
       return new Promise((resolve) => {
         this.client.end(false, {}, () => {
-          console.log('Disconnected from MQTT broker');
+          if (config.logging.enabled) {
+            console.log('Disconnected from MQTT broker');
+          }
           this.connected = false;
           resolve();
         });

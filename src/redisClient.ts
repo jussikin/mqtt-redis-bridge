@@ -11,39 +11,53 @@ export class RedisClientWrapper {
 
   constructor() {
     const redisUrl = `redis://${config.redis.password ? `:${config.redis.password}@` : ''}${config.redis.host}:${config.redis.port}`;
-    console.log('Connecting to Redis at:', redisUrl.replace(/:([^@]+)@/, ':***@')); // Hide password in logs
+    if (config.logging.enabled) {
+      console.log('Connecting to Redis at:', redisUrl.replace(/:([^@]+)@/, ':***@')); // Hide password in logs
+    }
     
     this.client = createClient({
       url: redisUrl,
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > this.maxReconnectAttempts) {
-            console.error('Max reconnection attempts reached. Giving up.');
+            if (config.logging.enabled) {
+              console.error('Max reconnection attempts reached. Giving up.');
+            }
             return new Error('Max reconnection attempts reached');
           }
           const delay = Math.min(retries * 1000, this.reconnectDelay);
-          console.log(`Attempting to reconnect to Redis in ${delay}ms (attempt ${retries + 1}/${this.maxReconnectAttempts})`);
+          if (config.logging.enabled) {
+            console.log(`Attempting to reconnect to Redis in ${delay}ms (attempt ${retries + 1}/${this.maxReconnectAttempts})`);
+          }
           return delay;
         },
       },
     });
 
     this.client.on('error', (err: Error) => {
-      console.error('Redis Client Error:', err);
+      if (config.logging.enabled) {
+        console.error('Redis Client Error:', err);
+      }
       this.connected = false;
     });
 
     this.client.on('connect', () => {
-      console.log('Connected to Redis');
+      if (config.logging.enabled) {
+        console.log('Connected to Redis');
+      }
       this.connected = true;
     });
 
     this.client.on('reconnecting', () => {
-      console.log('Reconnecting to Redis...');
+      if (config.logging.enabled) {
+        console.log('Reconnecting to Redis...');
+      }
     });
 
     this.client.on('end', () => {
-      console.log('Redis connection closed');
+      if (config.logging.enabled) {
+        console.log('Redis connection closed');
+      }
       this.connected = false;
     });
   }
@@ -67,7 +81,9 @@ export class RedisClientWrapper {
     }
     const fullKey = `${config.redis.keyPrefix}${key}`;
     await (this.client as any).hSet(fullKey, field, value);
-    console.log(`Updated Redis hash ${fullKey} field ${field}`);
+    if (config.logging.enabled) {
+      console.log(`Updated Redis hash ${fullKey} field ${field}`);
+    }
   }
 
   async getHash(key: string, field: string): Promise<string | null> {

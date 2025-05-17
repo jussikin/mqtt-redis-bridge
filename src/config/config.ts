@@ -15,6 +15,9 @@ export interface Config {
     password?: string;
     keyPrefix: string;
   };
+  logging: {
+    enabled: boolean;
+  };
 }
 
 export const config: Config = {
@@ -28,6 +31,9 @@ export const config: Config = {
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD,
     keyPrefix: process.env.REDIS_KEY_PREFIX || 'mqtt:',
+  },
+  logging: {
+    enabled: process.env.LOGGING_ENABLED !== 'false', // enabled by default
   },
 };
 

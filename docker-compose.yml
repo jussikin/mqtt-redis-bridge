@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  mqtt-redis-bridge:
+    build: .
+    container_name: mqtt-redis-bridge
+    restart: unless-stopped
+    environment:
+      - MQTT_BROKER_URL=${MQTT_BROKER_URL:-mqtt://mosquitto:1883}
+      - MQTT_TOPICS=${MQTT_TOPICS:-test/topic}
+      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-mqtt-redis-bridge}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-mqtt:}
+    depends_on:
+      - redis
+    # Uncomment the following if you want to include an MQTT broker in the stack
+    # - mosquitto
+    networks:
+      - mqtt-redis-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - mqtt-redis-network
+
+  # Uncomment if you want to include an MQTT broker in the stack
+  # mosquitto:
+  #   image: eclipse-mosquitto:2
+  #   container_name: mosquitto
+  #   restart: unless-stopped
+  #   ports:
+  #     - "1883:1883"  # MQTT
+  #     # - "9001:9001"  # MQTT over WebSockets (uncomment if needed)
+  #   volumes:
+  #     - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  #     - mosquitto_data:/mosquitto/data
+  #     - mosquitto_log:/mosquitto/log
+  #   networks:
+  #     - mqtt-redis-network
+
+networks:
+  mqtt-redis-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  # Uncomment if using Mosquitto
+  # mosquitto_data:
+  # mosquitto_log:
